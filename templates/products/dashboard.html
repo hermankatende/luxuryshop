@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxuryShop Admin Dashboard</title>
+    <style>
+        body { background: #040404; color: #f7e7b5; font-family: Arial, sans-serif; margin: 0; padding: 2rem; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .header h1 { margin: 0; }
+        .panel { background: #121212; border: 1px solid #333; border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { border-bottom: 1px solid #2c2c2c; padding: 0.75rem 0.5rem; text-align: left; }
+        th { color: #f3d27a; }
+        a { color: #f3d27a; text-decoration: none; }
+        tr:hover { background: rgba(243, 210, 122, 0.08); }
+        .small { color: #aaa; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>Admin Dashboard</h1>
+            <p class="small">Logged in as {{ request.user.username }}</p>
+        </div>
+        <div>
+            <a href="/admin/">Django Admin</a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Product inventory</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category.name if product.category else 'Unassigned' }}</td>
+                        <td>${{ product.price }}</td>
+                        <td>{{ product.is_active|yesno:'Yes,No' }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">No products available.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="panel">
+        <h2>Categories</h2>
+        <ul>
+            {% for category in categories %}
+                <li>{{ category.name }}</li>
+            {% empty %}
+                <li>No categories defined.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
