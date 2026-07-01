@@ -239,6 +239,9 @@ def create_order(request):
             customer_email=customer_email,
             customer_phone=customer_phone,
             customer_address=customer_address,
+            subtotal=0,
+            shipping=0,
+            total=0,
             payment_method=payment_method,
             status='pending',
         )
