@@ -16,6 +16,7 @@ urlpatterns = [
     path('api/payments/webhook/', views.payment_webhook, name='api_payment_webhook'),
     # Admin endpoints
     path('api/admin/products/', views.admin_products, name='api_admin_products'),
+    path('api/admin/categories/', views.admin_categories, name='api_admin_categories'),
     path('api/admin/orders/', views.admin_orders, name='api_admin_orders'),
     path('api/admin/payments/', views.admin_payments, name='api_admin_payments'),
     path('api/admin/reports/', views.admin_reports, name='api_admin_reports'),

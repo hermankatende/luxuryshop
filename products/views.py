@@ -214,18 +214,24 @@ def logout_view(request):
 def create_order(request):
     payload = _parse_json(request)
     
-    customer_name = payload.get('customer_name')
-    customer_email = payload.get('customer_email')
-    customer_phone = payload.get('customer_phone')
-    customer_address = payload.get('customer_address')
+    customer_name = (payload.get('customer_name') or '').strip()
+    customer_email = (payload.get('customer_email') or '').strip()
+    customer_phone = (payload.get('customer_phone') or '').strip()
+    customer_address = (payload.get('customer_address') or '').strip()
     payment_method = payload.get('payment_method', 'pos_terminal')
     items = payload.get('items', [])
 
-    if not all([customer_name, customer_email, customer_phone, customer_address, items]):
+    if not all([customer_name, customer_phone, items]):
         return _json_response(
-            {'error': 'Missing required fields.'},
+            {'error': 'Missing required fields. customer_name, customer_phone, and items are required.'},
             status=400
         )
+
+    if not customer_email:
+        customer_email = 'guest@luxuryshop.local'
+
+    if not customer_address:
+        customer_address = 'N/A'
 
     try:
         order = Order.objects.create(
@@ -509,13 +515,28 @@ def staff_dashboard(request):
 @require_http_methods(['GET', 'POST', 'PUT', 'DELETE'])
 def admin_products(request):
     """Manage products - list, create, update, delete."""
+    def _resolve_category(payload):
+        category_id = payload.get('category_id')
+        category_name = (payload.get('category_name') or '').strip()
+
+        if category_id in (None, '') and not category_name:
+            return None
+
+        if category_id not in (None, ''):
+            return Category.objects.get(id=int(category_id))
+
+        category, _ = Category.objects.get_or_create(name=category_name)
+        return category
+
     if request.method == 'GET':
         products = Product.objects.all().select_related('category')
         data = [
             {
                 'id': p.id,
                 'name': p.name,
+                'description': p.description,
                 'price': str(p.price),
+                'image_url': p.image_url,
                 'stock': p.stock_quantity,
                 'category': p.category.name if p.category else None,
                 'is_active': p.is_active,
@@ -527,17 +548,21 @@ def admin_products(request):
     elif request.method == 'POST':
         payload = _parse_json(request)
         try:
-            category_id = payload.get('category_id')
-            category = None
-            if category_id:
-                category = Category.objects.get(id=category_id)
+            name = (payload.get('name') or '').strip()
+            if not name:
+                return _json_response({'error': 'Product name is required.'}, status=400)
+
+            if payload.get('price') in (None, ''):
+                return _json_response({'error': 'Price is required.'}, status=400)
+
+            category = _resolve_category(payload)
 
             product = Product.objects.create(
-                name=payload.get('name'),
-                description=payload.get('description', ''),
+                name=name,
+                description=(payload.get('description') or '').strip(),
                 price=payload.get('price'),
                 category=category,
-                image_url=payload.get('image_url', ''),
+                image_url=(payload.get('image_url') or '').strip(),
                 stock_quantity=payload.get('stock', 0),
                 is_active=payload.get('is_active', True),
             )
@@ -554,10 +579,16 @@ def admin_products(request):
         product_id = payload.get('id')
         try:
             product = Product.objects.get(id=product_id)
-            product.name = payload.get('name', product.name)
-            product.description = payload.get('description', product.description)
+
+            category = _resolve_category(payload)
+            if category is not None:
+                product.category = category
+
+            product.name = (payload.get('name') or product.name).strip()
+            product.description = (payload.get('description') or '').strip()
             product.price = payload.get('price', product.price)
             product.stock_quantity = payload.get('stock', product.stock_quantity)
+            product.image_url = (payload.get('image_url') or '').strip()
             product.is_active = payload.get('is_active', product.is_active)
             product.save()
             return _json_response({'id': product.id, 'message': 'Product updated.'})
@@ -573,6 +604,68 @@ def admin_products(request):
             return _json_response({'message': 'Product deleted.'})
         except Product.DoesNotExist:
             return _json_response({'error': 'Product not found.'}, status=404)
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def admin_categories(request):
+    """Manage categories for admin dashboard."""
+    if request.method == 'GET':
+        categories = Category.objects.all().order_by('name')
+        data = [
+            {
+                'id': category.id,
+                'name': category.name,
+                'slug': category.slug,
+                'product_count': category.products.count(),
+            }
+            for category in categories
+        ]
+        return _json_response({'categories': data})
+
+    if request.method == 'POST':
+        payload = _parse_json(request)
+        name = (payload.get('name') or '').strip()
+        if not name:
+            return _json_response({'error': 'Category name is required.'}, status=400)
+
+        category, created = Category.objects.get_or_create(name=name)
+        status_code = 201 if created else 200
+        return _json_response(
+            {
+                'id': category.id,
+                'name': category.name,
+                'slug': category.slug,
+                'created': created,
+            },
+            status=status_code,
+        )
+
+    payload = _parse_json(request)
+    category_id = payload.get('id')
+    category_name = (payload.get('name') or '').strip()
+
+    if category_id in (None, '') and not category_name:
+        return _json_response({'error': 'Provide category id or name.'}, status=400)
+
+    try:
+        if category_id not in (None, ''):
+            category = Category.objects.get(id=int(category_id))
+        else:
+            category = Category.objects.get(name=category_name)
+    except (Category.DoesNotExist, ValueError):
+        return _json_response({'error': 'Category not found.'}, status=404)
+
+    affected_products = category.products.count()
+    deleted_name = category.name
+    category.delete()
+    return _json_response(
+        {
+            'message': 'Category deleted.',
+            'name': deleted_name,
+            'affected_products': affected_products,
+        }
+    )
 
 
 @csrf_exempt
